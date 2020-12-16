@@ -1,0 +1,370 @@
+---
+title: "R Tutorial: ANOVA and Simple Linear Regression"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+        echo = TRUE,
+        eval = TRUE,
+        message = TRUE,
+        error = TRUE,
+        warning = TRUE,
+        highlight = TRUE,
+        prompt = FALSE
+        )
+
+setwd("c:/Users/XXXXXXX")
+
+library(devtools)
+library(reshape2)
+library(RCurl)
+library(XML)
+
+
+
+```
+
+
+
+
+
+
+## Part A. ANOVA
+
+Blue light has been a hot topic over the past few years. As people spend more time looking at screens, it is becoming increasingly important to understand the effects of blue light exposure on a person's sleep. In this experiment, all 22 subjects are required to be exposed to 8 hours of blue light per day. Each subject was randomly assigned one of three blue light treatment groups, the control, treatment 1, or treatment 2. In treatment 1, subjects wore blue light blocking glasses for two hours before bedtime. In treatment 2, subjects were required to read a paper book for 30 minutes before bed. In the control group, subjects were expected to wear glasses that do not block blue light for two hours before bedtime. All subjects were required to be in bed by 10PM and have their alarm set for 6AM. Digital watches were used for tracking the average # of hours slept for each subject over 2 weeks with each assigned treatment group. Below are the average hours of sleep for each of the 22 subjects over 2 weeks.
+(Note: The data used in Part A is fake)
+
+
+|Treatment|Hours of Sleep (average)                            |
+|:--------|:-------------------------------------------|
+|Control  |7.2, 6.8, 5.9, 7.4, 7.35, 6.87, 7.95, 7.13|
+|Glasses  |7.11, 7.44, 7.32, 7.88, 7.91, 7.43, 7.39       |
+|Book     |7.9, 5.5, 6.9, 7.63, 7.34, 7.54, 7.92    |
+
+
+### Question A1
+
+Consider the following incomplete R output:
+
+|Source|Df |Sum of Squares|Mean Squares|F-statistics|p-value|
+|:----:|:-:|:------------:|:----------:|:----------:|:-----:|
+|Treatments|?|?|?|?|?|
+|Error|?|?|?| | |
+|TOTAL|?|?| | | |
+
+Fill in the missing values in the analysis of the variance table.
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+Control <- c(7.2, 6.8, 5.9, 7.4, 7.35, 6.87, 7.95, 7.13)
+Glasses <- c(7.11, 7.44, 7.32, 7.88, 7.91, 7.43, 7.39)
+Book <- c(7.9, 5.5, 6.9, 7.63, 7.34, 7.54, 7.92)
+
+df <- data.frame(Treatment=c(rep("Control", times=length(Control)), 
+                        rep("Glasses", times=length(Glasses)),
+                        rep("Book", times=length(Book))), 
+                 Sleep_Hours=c(Control, Glasses, Book))
+
+#print(df)
+
+model <- aov(df$Sleep_Hours ~ df$Treatment)
+
+summary(model)
+
+```
+
+### Question A1 Answer
+
+|Source|Df |Sum of Squares|Mean Squares|F-statistics|p-value|
+|:-----:|:--:|:-------------:|:-----------:|:-----------:|:------:|
+|Treatments|2|0.668|0.3341|0.873|0.434|
+|Error|19|7.274|0.3829| | |
+|TOTAL|21|7.942| | | |
+
+
+### Question A2
+
+Use $\mu_1$, $\mu_2$, and $\mu_3$  as notation for the three mean parameters and define these parameters clearly based in the context of the topic above. Find the estimates of these parameters.
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+u1 <- mean(Control)
+u2 <- mean(Glasses)
+u3 <- mean(Book)
+
+cat("The average hours of sleep for the control group is", u1, ".")
+cat("The average hours of sleep for the blue light glasses treatment group is", u2, ".")
+cat("The average hours of sleep for the reading a book treatment group is", u3, ".")
+
+```
+
+### Question A3
+
+What are the null and alternative hypotheses of interest in ANOVA? Use the parameters in part A2 to write the two hypotheses. Based on the ANOVA table in A1, answer the following questions:
+
+Null Hypothesis: U1 = U2 = U3
+
+Alternative Hypothesis: Means are not all equal
+
+(i) Fill in the blanks for k-1 and N-k: Under $H_0$ (i.e., when the null hypothesis is true), the $F$-test statistic has an $F$(k-1;N-k) distribution: (This is the distribution under which the p-value is calculated).
+
+k-1 = 2
+
+n-k = 19
+
+(ii) What is the p-value of the ANOVA $F$-test?
+
+The p-value of the ANOVA F-test is 0.434.
+
+(iii) State your conclusions in context. Do blue light blocking glasses or reading a book affect sleep?
+
+The difference of the mean values for the treatments and the control are not statistically significant. Therefore, we fail to reject the null hypothesis, accepting that blue light blocking glasses nor reading a book changes a subject's sleep.
+
+## Part B. Simple Linear Regression
+
+Gross Domestic Product is the total monetary value of all the finished goods and services produced within a country's borders in a specific time period.There are several methods for calculating GDP. The most common one is the  expenditure approach. In this approach, GDP is estimated by summing consumption, government spending, investment, and net exports. Consumption is when consumers spend money to purchase goods and services, such as an iPhone or a haircut. Consumer spending accounts for 2/3 of GDP in this approach. Because consumption is dependent on spending, theoretically, it should be correlated with population. In Part B, we will explore the relationship between state population and GDP based on data sourced from the Bureau of Economic Analysis (BEA).
+
+The GDPperState data file includes the following columns:
+
+_GeoFips_: Geographic code
+
+_GeoName_: Geographical region, including all U.S. states and various regions
+
+_2019_: Real GDP for 2019 (millions of chained 2012 dollars)
+
+The PersonalIncomeSummaryTable data file includes the following columns:
+
+_GeoFips_: Geographic code
+
+_GeoName_: Geographical region, including all U.S. states
+
+_LineCode_: Statistic code
+
+_Description_: Description of the statistic, including units
+
+_2019_: Value of the statistic in 2019
+
+The data is stored locally in two CSV files. To read the data in `R`, we will save them in my working directory and read the data using the `R` function `read.csv()`. We will utilize the following arguments to clean the source data before the CSV read:
+
+head --> If the file contains Columns names as the First Row then it is TRUE otherwise, FALSE
+sep --> specify the character that is separating the fields
+skip --> specifies the number of rows you want to skip from file
+nrows --> restrict the total number of rows to read
+
+
+```{r}
+
+#Import two CSV files from local source
+
+GDPperState = read.csv("C:\\Users\\71104861\\Documents\\Personal\\DataGeneralist\\Data Lessons\\Rblog2\\GDPperState.csv", head = TRUE, sep = ",", skip = 4, nrows = 52)
+
+PersonalIncomeTable = read.csv("C:\\Users\\71104861\\Documents\\Personal\\DataGeneralist\\Data Lessons\\Rblog2\\PersonalIncomeSummaryTable.csv", head = TRUE, sep = ",", skip = 4, nrows = 156)
+
+```
+
+Then, we will filter out irrelevant rows and columns and merge the useful information into the same data frame to prepare it for plotting, modeling, and prediction.
+
+Keep Geofips until after merge...
+
+```{r}
+library(dplyr)
+
+#Filter out non-population data and the United States code
+PersonalIncomeTable = PersonalIncomeTable[PersonalIncomeTable$Description == "Population (persons) 1/", ]
+PersonalIncomeTable = PersonalIncomeTable[PersonalIncomeTable$GeoFips > 0, ]
+
+#Remove two columns
+PersonalIncomeTable$LineCode <- NULL
+PersonalIncomeTable$Description <- NULL
+
+#Rename two columns
+PersonalIncomeTable <- rename(PersonalIncomeTable, Population = X2019)
+PersonalIncomeTable <- rename(PersonalIncomeTable, State2 = GeoName) 
+
+#Filter out United States code
+GDPperState = GDPperState[GDPperState$GeoFips > 0, ]
+
+#Rename two columns
+GDPperState <- rename(GDPperState, Real_GDP = X2019) 
+GDPperState <- rename(GDPperState, State = GeoName) 
+
+#Merge the two dataframes on the GeoFips code
+GDP_Pop_Merge <- inner_join(PersonalIncomeTable, GDPperState, by = 'GeoFips')
+
+#Delete extra state column and GeoFips column
+GDP_Pop_Merge$GeoFips <- NULL
+GDP_Pop_Merge$State2 <- NULL
+
+#Convert population to millions
+GDP_Pop_Merge$Population = GDP_Pop_Merge$Population / 1000000
+
+#Write the two variables as vectors by slicing the data frame
+Population = as.numeric(GDP_Pop_Merge[,1])
+Real_GDP = as.numeric(GDP_Pop_Merge[,3])
+
+```
+
+
+### Question B1: Exploratory Data Analysis
+
+a. Using a scatter plot describe the relationship between the state's population and its real GDP. Describe the general trend (direction and form). (Use the plot() function in R with the two input variables. Include plots and R-code used.
+
+```{r}
+plot(Population, Real_GDP, main="State GDP vs. Population in 2019 Scatterplot", xlab="Population (in millions)", ylab="Real GDP (millions of dollars)", pch=19)
+
+abline(lm(Real_GDP ~ Population), col="red")
+```
+
+In general, as the state population increases, the real GDP increases. The linear relationship between these two variables appears to be strong.
+
+b.  What is the value of the correlation coefficient? (Use the cor() function in R with the two input variables. Please interpret.  Discuss the difference in the strength in correlation.
+
+```{r}
+cor(Real_GDP, Population)
+```
+
+Correlation coefficient is 0.98.
+
+There is a very strong positive linear relationship between the state's population and its real GDP. As the number of people living in a state increases, we would expect the real GDP to increase.
+
+c. Based on this exploratory analysis, is it reasonable to assume a simple linear regression model for the relationship between population and real GDP?  Did you note anything unusual?
+
+Yes, it is reasonale to assume a simple linear regression model for the relationship between these two variables because the correlation coefficient is .98. However, the variance appears to increase as population increases to the upper quartile of values. Also, the majority of the data is clustered under 8 million in population. In conclusion, the strong correlation suggests that the model is good for explaining the relationship, but the variance and clustering lead me to question the model's predictive power.
+
+d. Based on the analysis above, would you pursue a transformation of the data?
+
+If this model's purpose is explanatory power, I would not transform it. However, if the model is for prediction, I would consider a transformation.
+
+### Question B2: Fitting the Simple Linear Regression Model
+
+Fit a linear regression to evaluate the relationship between the rate of accidents and the number of signs. Do not transform the data. The function to use in R is:
+
+`model = lm(Real_GDP ~ Population)`
+
+a. What are the model parameters and what are their estimates?  
+
+```{r}
+model = lm(Real_GDP ~ Population)
+summary(model)
+```
+
+b. Write down the equation for the least squares line.
+
+Real_GDP = 64949*(Population) - 47980
+
+c. Interpret the estimated value of the slope parameter in the context of the problem. Include its standard error in your interpretation.
+
+If you add one million of population to a state, the real GDP will increase by an average of 64,949 million. Most of the deviation from this average rate of increase can be explained by the standard error of 1847 million added or subtracted from this slope parameter.
+
+d. Find a 95% confidence interval for the slope parameter. Is the slope statistically significant at this level?
+
+```{r}
+confint(model, level=0.95)
+
+```
+
+The 95% confidence interval for the slope parameter is (61,237, 68,661). Yes, it is statistically significant at this level.
+
+### Question B3: Checking the Assumptions of the Model
+
+To check whether the assumptions are met, we use three visual displays:
+
+1. Scatterplot of the data
+
+```{r}
+plot(Population, Real_GDP, main= "State GDP vs. Population in 2019 Scatterplot", xlab="Population (in millions)", ylab="Real GDP (millions of dollars)", pch=19)
+abline(lm(Real_GDP ~ Population), col="red")
+```
+
+2. Residual plot - a plot of the residuals, $\epsilon_i$, versus, $\hat{y}_i$ (also called the predicted or fitted values)
+
+``` {r}
+model.res = resid(model)
+plot(Population, model.res, 
+  ylab="Real GDP", xlab="Population", 
+  main="Population vs. Real GDP") 
+abline(0, 0) 
+```
+
+3. Normal probability plot of the residuals, or q-q
+
+``` {r}
+model.res = resid(model)
+qqnorm(model.res, pch = 1, frame = FALSE)
+qqline(model.res, col = "steelblue", lwd = 2)
+```
+
+
+``` {r}
+plot(model)
+
+#Calculate Cook's distance for each point. If the value is greater than 4/n, then it is an outlier.
+
+GDP_Pop_Merge$cooksd <- cooks.distance(model)
+threshold <- 4/nrow(GDP_Pop_Merge)
+#Threshold is .078
+
+```
+Provide the plots and R commands used to evaluate the assumptions.
+
+Interpret the 3 displays with respect to the assumptions of the linear regression model. In other words, comment on whether there are any apparent departures from the assumptions of the linear regression model. Make sure that you state the model assumptions and assess each one. Describe what graphical tool you used to evaluate each assumption. Finally, are there any extreme outliers in the data/residuals?
+
+
+The scatterplot shows that there is a very strong positive linear relatiomship between the two variables. The residual deviance seems to increase as population increases suggesting a non-constant variance. The issues continue in the q-q plot which reveals that the residuals are not normally distributed. The upper quantile does not contain the expected number of observations. It looks like most of the data is distributed on the left side with a "long tail" extending out to the right. This cluster on the left side is confirmed in the residual plot. 
+California and Florida appear to be outliers. Both of them have values greater than the Cook's distance threshold defined by 4/n = .078.
+
+
+
+### Question B4: Prediction
+
+Suppose we are interested in what the rate of accidents is when `population = 9.13`.  Please make a prediction and provide the 95% prediction interval. What observations can you make about the result?
+
+
+```{r}
+predict(model, data.frame(Population = c(9.13)), se.fit=T, interval="prediction", level=0.95)
+predict(model, data.frame(Population = c(9.13)), interval="predict", level=0.99)
+
+```
+
+Having 9.13 millions of people is predicted to yield $545,004 million GDP. The 95% prediction interval estimates this value to be between (284494.4, 805514.2), which is a large range, considering the scatter plot shows the majority of GDP data points ti be between these values. This seems like the model does not provide a prediction with too much value. 
+
+### Additional Related Resources
+
+One-way ANOVA tutorial: https://datascienceplus.com/one-way-anova-in-r/
+
+Simple Linear Regression tutorial: http://www.r-tutor.com/elementary-statistics/simple-linear-regression
+
+
+#### Sources, Methodology and Notes
+
+
+Problem sets: The problem sets are modeled after Georgia Tech's ISYE 6414 Regression Analysis Course; however, the data sets have changed considerably.
+
+Data: 
+
+Part A: The data used is fake.
+
+Part B: The data is sources from the Bureau of Economic Analysis (BEA)
+
+SAINC1 Personal Income Summary: Personal Income, Population, Per Capita Personal Income
+SAGDP1 Gross Domestic Product (GDP) summary, annual by state
+https://apps.bea.gov/itable/iTable.cfm?ReqID=70&step=1#reqid=70&step=1&isuri=1
+
+
+Rwordpress Help: 
+https://www.tabvizexplorer.com/how-to-upload-r-markdown-directly-to-wordpress/
+https://rpubs.com/pbaumgartner/r2wp
+
+
+
+
+
+
+
